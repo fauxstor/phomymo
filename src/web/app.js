@@ -817,7 +817,7 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
   for (const [key, size] of Object.entries(rectSizes)) {
     const option = document.createElement('option');
     option.value = key;
-    option.textContent = `${size.width}x${size.height}mm`;
+    option.textContent = `${size.width}x${size.height}mm` + (size.label ? ` (${size.label})` : '');
     select.appendChild(option);
   }
 
@@ -924,7 +924,7 @@ function updateMobileLabelSizeDropdown(deviceName = '', model = 'auto') {
   for (const [key, size] of Object.entries(rectSizes)) {
     const option = document.createElement('option');
     option.value = key;
-    option.textContent = `${size.width}x${size.height}mm`;
+    option.textContent = `${size.width}x${size.height}mm` + (size.label ? ` (${size.label})` : '');
     mobileSelect.appendChild(option);
   }
 

@@ -222,6 +222,7 @@ export const D520_LABEL_SIZES = {
   '108x76': { width: 108, height: 76 },    // 4x3" - smaller shipping label
   '108x51': { width: 108, height: 51 },     // 4x2" - return address label
   '108x200': { width: 108, height: 200 },  // Long label
+  '57x32': { width: 57, height: 32, label: 'plant sale' },
 };
 
 // =============================================================================
