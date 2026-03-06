@@ -1,7 +1,7 @@
 /**
  * Printer protocol for Phomemo printers
  * Handles print commands for both USB and BLE transports
- * Supports M-series (M02, M110, M200, M220, M260) and D-series (D30, D110)
+ * Supports M-series (M02, M110, M200, M220, M260), D-series (D30, D110), D520BT (shipping), and PM-241
  * v109
  */
 
@@ -165,6 +165,8 @@ const PRINTER_WIDTHS = {
   'm04s-110': 110,
   // PM-241 series (4 inch / 102mm / 812px) - shipping label printer
   'pm241': 102,
+  // D520/D520BT (4 inch / 108mm / 864px) - shipping label printer, Bluetooth + USB
+  'd520': 108,
   // D-series uses raw label width
   'd-series': null,
 };
@@ -214,7 +216,13 @@ const DEVICE_PATTERNS = [
   { pattern: 'PM-241', width: 102, protocol: 'tspl', dpi: 203 },
   { pattern: 'PM241', width: 102, protocol: 'tspl', dpi: 203 },
   { pattern: 'PM 241', width: 102, protocol: 'tspl', dpi: 203 },
-  // D-series (rotated protocol)
+  // D520/D520BT (4 inch / 108mm shipping label printer) - TSPL, BLE + USB
+  // Must appear before generic "D" so D520BT matches here, not d-series
+  { pattern: 'D520BT', width: 108, protocol: 'tspl', dpi: 203 },
+  { pattern: 'D520-BT', width: 108, protocol: 'tspl', dpi: 203 },
+  { pattern: 'D520', width: 108, protocol: 'tspl', dpi: 203 },
+  { pattern: 'PHOMEMO D520', width: 108, protocol: 'tspl', dpi: 203 },
+  // D-series (rotated protocol) - small sticker printers
   { pattern: 'D30', width: null, protocol: 'd-series', dpi: 203 },
   { pattern: 'D35', width: null, protocol: 'd-series', dpi: 203 },
   { pattern: 'D50', width: null, protocol: 'd-series', dpi: 203 },
@@ -303,6 +311,11 @@ function getOverrideConfig(modelOverride) {
   // PM-241 uses TSPL protocol (shipping label printer)
   if (modelOverride === 'pm241') {
     return { width: 102, protocol: 'tspl', dpi: 203 };
+  }
+
+  // D520/D520BT uses TSPL (4" / 108mm shipping label printer)
+  if (modelOverride === 'd520') {
+    return { width: 108, protocol: 'tspl', dpi: 203 };
   }
 
   const width = PRINTER_WIDTHS[modelOverride];
@@ -401,6 +414,23 @@ export function isA30Printer(deviceName, modelOverride = 'auto') {
  */
 export function isTapePrinter(deviceName, modelOverride = 'auto') {
   return isP12Printer(deviceName, modelOverride) || isA30Printer(deviceName, modelOverride);
+}
+
+/**
+ * Detect if device is D520/D520BT (4-inch / 108mm shipping label printer)
+ * @param {string} deviceName - BLE device name
+ * @param {string} modelOverride - Manual model selection
+ */
+export function isD520Printer(deviceName, modelOverride = 'auto') {
+  if (modelOverride === 'd520') {
+    return true;
+  }
+  const overrideConfig = getOverrideConfig(modelOverride);
+  if (overrideConfig) {
+    return overrideConfig.width === 108 && overrideConfig.protocol === 'tspl';
+  }
+  const config = detectPrinterConfig(deviceName);
+  return config.width === 108 && config.protocol === 'tspl';
 }
 
 /**
@@ -569,6 +599,9 @@ export function getPrinterDescription(deviceName, modelOverride = 'auto') {
 
   const isPM241 = isPM241Printer(deviceName, modelOverride);
   if (isPM241) return 'PM-241 (4-inch shipping)';
+
+  const isD520 = isD520Printer(deviceName, modelOverride);
+  if (isD520) return 'D520 (4" shipping)';
 
   const isM02 = isM02Printer(deviceName, modelOverride);
   const isM110 = isM110Printer(deviceName, modelOverride);

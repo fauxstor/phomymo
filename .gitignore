@@ -2,6 +2,7 @@
 *.md
 !README.md
 node_modules/
+certs/
 
 # Site-specific SEO files (contain domain-specific URLs)
 src/web/sitemap.xml
@@ -9,3 +10,4 @@ src/web/robots.txt
 src/web/screenshot.png
 src/web/google*.html
 archive/
+nginx.conf

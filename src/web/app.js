@@ -7,7 +7,7 @@
 import { CanvasRenderer } from './canvas.js?v=113';
 import { BLETransport } from './ble.js?v=103';
 import { USBTransport } from './usb.js?v=101';
-import { print, printDensityTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, isDeviceRecognized, getMatchedPattern } from './printer.js?v=124';
+import { print, printDensityTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isD520Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, isDeviceRecognized, getMatchedPattern } from './printer.js?v=124';
 import {
   createTextElement,
   createImageElement,
@@ -83,6 +83,7 @@ import {
   D_SERIES_ROUND_LABELS,
   TAPE_LABEL_SIZES,
   PM241_LABEL_SIZES,
+  D520_LABEL_SIZES,
 } from './constants.js?v=104';
 import {
   bindCheckbox,
@@ -770,6 +771,7 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
   const isTape = isTapePrinter(deviceName, model);
   const isDSeries = isDSeriesPrinter(deviceName, model);
   const isPM241 = isPM241Printer(deviceName, model);
+  const isD520 = isD520Printer(deviceName, model);
 
   // Show/hide tape width selector
   updateTapeWidthVisibility(isTape);
@@ -792,6 +794,11 @@ function updateLabelSizeDropdown(deviceName = '', model = 'auto') {
     rectSizes = PM241_LABEL_SIZES;
     roundSizes = {}; // No round labels for shipping printer
     defaultKey = '102x152'; // 4x6" default
+  } else if (isD520) {
+    // D520/D520BT shipping label sizes (108mm width)
+    rectSizes = D520_LABEL_SIZES;
+    roundSizes = {};
+    defaultKey = '108x152'; // 4x6" default
   } else {
     // Standard M-series label sizes
     rectSizes = M_SERIES_LABEL_SIZES;
@@ -885,6 +892,7 @@ function updateMobileLabelSizeDropdown(deviceName = '', model = 'auto') {
   const isTape = isTapePrinter(deviceName, model);
   const isDSeries = isDSeriesPrinter(deviceName, model);
   const isPM241 = isPM241Printer(deviceName, model);
+  const isD520 = isD520Printer(deviceName, model);
 
   let rectSizes, roundSizes;
   if (isTape) {
@@ -898,6 +906,9 @@ function updateMobileLabelSizeDropdown(deviceName = '', model = 'auto') {
     roundSizes = D_SERIES_ROUND_LABELS;
   } else if (isPM241) {
     rectSizes = PM241_LABEL_SIZES;
+    roundSizes = {};
+  } else if (isD520) {
+    rectSizes = D520_LABEL_SIZES;
     roundSizes = {};
   } else {
     rectSizes = M_SERIES_LABEL_SIZES;
@@ -4584,7 +4595,7 @@ async function handleConnect(event) {
 
     if (isBLE) {
       if (!BLETransport.isAvailable()) {
-        throw new Error('Bluetooth is not supported');
+        throw new Error('Bluetooth is not available in this browser or context. Use USB for D520/PM-241, or try: edge://flags → search "Web Bluetooth" → Enable → restart browser.');
       }
       state.transport = BLETransport.getShared();
     } else {
@@ -5558,27 +5569,38 @@ function hideShortcutsModal() {
 
 /**
  * Check browser compatibility
+ * Printing is available if we have a secure context and at least one of Web Bluetooth or WebUSB.
  */
 function checkCompatibility() {
   const warnings = [];
-  let canPrint = true;
+  const hasSecureContext = window.isSecureContext;
+  const hasBluetooth = 'bluetooth' in navigator;
+  const hasUSB = 'usb' in navigator;
 
-  if (!window.isSecureContext) {
-    warnings.push('HTTPS required for printing - this app must be served over a secure connection');
-    canPrint = false;
+  if (!hasSecureContext) {
+    warnings.push('HTTPS required for printing - this app must be served over a secure connection (e.g. https:// or localhost).');
   }
 
-  if (!('bluetooth' in navigator)) {
-    warnings.push('Web Bluetooth not supported - printing requires Chrome, Edge, or Opera');
-    canPrint = false;
+  if (!hasBluetooth) {
+    if (hasUSB) {
+      warnings.push('Web Bluetooth is not available in this context. You can use <strong>USB</strong> to connect (e.g. D520, PM-241). To try enabling Bluetooth: open edge://flags or chrome://flags, search for "Web Bluetooth", set to Enabled, and restart the browser.');
+    } else {
+      warnings.push('Web Bluetooth not supported - printing requires Chrome, Edge, or Opera with Web Bluetooth (or use USB on a supported browser).');
+    }
   }
 
-  if (!('usb' in navigator)) {
+  if (!hasUSB) {
     console.warn('WebUSB not supported - USB printing will not be available');
   }
 
-  // Store print capability in state for disabling print buttons
+  // Printing is available if secure and at least one transport exists
+  const canPrint = hasSecureContext && (hasBluetooth || hasUSB);
   state.canPrint = canPrint;
+
+  // When only USB is available, default connection type to USB so Connect works
+  if (canPrint && !hasBluetooth && hasUSB) {
+    state.connectionType = 'usb';
+  }
 
   if (warnings.length > 0) {
     const overlay = document.createElement('div');
@@ -5594,7 +5616,7 @@ function checkCompatibility() {
             </div>
             <div>
               <h3 class="text-lg font-bold">Limited Browser Support</h3>
-              <p class="text-amber-100 text-xs">Printing requires Chrome, Edge, or Opera</p>
+              <p class="text-amber-100 text-xs">${canPrint ? 'USB printing is available. Bluetooth may need to be enabled in browser flags.' : 'Printing requires Chrome, Edge, or Opera'}</p>
             </div>
           </div>
         </div>
@@ -5649,7 +5671,7 @@ function checkCompatibility() {
             </div>
             <div class="bg-gray-50 rounded-lg p-2 border border-gray-200">
               <span class="text-xs font-medium text-orange-600 uppercase tracking-wide">Shipping</span>
-              <p class="text-sm text-gray-700">PM-241, PM-241-BT (USB only)</p>
+              <p class="text-sm text-gray-700">PM-241 (USB), D520 / D520BT (BLE + USB)</p>
             </div>
           </div>
 
@@ -6762,12 +6784,19 @@ function init() {
     setTapeWidth(parseInt(e.target.value, 10));
   });
 
-  // Connection type
+  // Connection type: hide options for unavailable transports and sync to state
   const connType = $('#conn-type');
   if (!('usb' in navigator)) {
     const usbOption = connType.querySelector('option[value="usb"]');
     if (usbOption) usbOption.remove();
   }
+  if (!('bluetooth' in navigator)) {
+    const bleOption = connType.querySelector('option[value="ble"]');
+    if (bleOption) bleOption.remove();
+  }
+  connType.value = state.connectionType;
+  const mobileConnType = $('#mobile-conn-type');
+  if (mobileConnType) mobileConnType.value = state.connectionType;
   connType.addEventListener('change', (e) => {
     state.connectionType = e.target.value;
     const btn = $('#connect-btn');

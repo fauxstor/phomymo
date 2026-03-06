@@ -215,6 +215,15 @@ export const PM241_LABEL_SIZES = {
   '100x100': { width: 100, height: 100 },  // Square metric
 };
 
+// D520/D520BT - 4-inch (108mm) shipping label printer
+export const D520_LABEL_SIZES = {
+  '108x152': { width: 108, height: 152 },  // 4x6" - standard shipping label
+  '108x102': { width: 108, height: 102 },  // 4x4" - square label
+  '108x76': { width: 108, height: 76 },    // 4x3" - smaller shipping label
+  '108x51': { width: 108, height: 51 },     // 4x2" - return address label
+  '108x200': { width: 108, height: 200 },  // Long label
+};
+
 // =============================================================================
 // DEFAULT ELEMENT VALUES
 // =============================================================================
