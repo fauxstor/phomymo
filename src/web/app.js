@@ -1653,6 +1653,68 @@ function importCSVData(csvString) {
 }
 
 /**
+ * Load template data from an array of row objects (e.g. from URL or postMessage).
+ * Same shape as CSV import: array of objects with string keys (e.g. "Common Name", "Botanical Name", "Price").
+ * Merges incoming keys into templateFields so the Manage Data table can display them.
+ * @param {Array<Object>} rows - Array of record objects
+ */
+function loadTemplateDataFromRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+
+  const incomingKeys = [...new Set(rows.flatMap(r => Object.keys(r)))];
+  const mergedFields = [...new Set([...state.templateFields, ...incomingKeys])];
+  state.templateFields = mergedFields;
+
+  const mappedRecords = rows.map(row => {
+    const record = createEmptyRecord(state.templateFields);
+    for (const field of state.templateFields) {
+      if (Object.prototype.hasOwnProperty.call(row, field)) {
+        record[field] = row[field];
+      } else {
+        const lowerField = field.toLowerCase();
+        const match = Object.keys(row).find(k => k.toLowerCase() === lowerField);
+        if (match) record[field] = row[match];
+      }
+    }
+    return record;
+  });
+
+  state.templateData = mappedRecords;
+  state.selectedRecords = mappedRecords.map((_, i) => i);
+  updateTemplateDataTable();
+  updateTemplateIndicator();
+  setStatus(`Loaded ${mappedRecords.length} records`);
+}
+
+/**
+ * Parse URL for ?data= or #data= (base64-encoded JSON array) and load into Manage Data table.
+ * Called once on app load.
+ */
+function loadTemplateDataFromUrl() {
+  const getDataParam = (searchOrHash) => {
+    if (!searchOrHash) return null;
+    const params = new URLSearchParams(searchOrHash.startsWith('#') ? searchOrHash.slice(1) : searchOrHash);
+    const encoded = params.get('data');
+    if (!encoded) return null;
+    try {
+      const json = atob(decodeURIComponent(encoded.replace(/\s/g, '')));
+      const parsed = JSON.parse(json);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (e) {
+      console.warn('Phomymo: failed to parse data param', e);
+      return null;
+    }
+  };
+
+  const fromQuery = getDataParam(window.location.search);
+  const fromHash = getDataParam(window.location.hash);
+  const rows = fromQuery ?? fromHash;
+  if (rows && rows.length > 0) {
+    loadTemplateDataFromRows(rows);
+  }
+}
+
+/**
  * Show template data dialog
  */
 function showTemplateDataDialog() {
@@ -7844,6 +7906,16 @@ function init() {
     // Disconnect transport if connected
     if (state.transport && state.transport.connected) {
       state.transport.disconnect();
+    }
+  });
+
+  // Load template data from URL if present (?data= or #data= base64-encoded JSON array)
+  loadTemplateDataFromUrl();
+
+  // When embedded (e.g. iframe), accept pre-filled data via postMessage
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'phomymo/loadData' && Array.isArray(e.data.rows)) {
+      loadTemplateDataFromRows(e.data.rows);
     }
   });
 
